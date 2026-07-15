@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Family Chronicle</title>
+  <!-- React + Babel via CDN: no build step (needs internet at load time). -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f4ef; --card: #fffdf9; --ink: #2c2a26; --muted: #8a8378;
+      --line: #e7e1d6; --accent: #7c5cbf; --accent-soft: #efe9fb; --ok: #3d915f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 15px/1.5 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    header { padding: 28px 20px 8px; text-align: center; }
+    header h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
+    header p { margin: 6px 0 0; color: var(--muted); }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 16px 20px 60px; }
+    .cluster-bar {
+      display: flex; gap: 8px; align-items: center; justify-content: center;
+      margin: 14px 0 22px; flex-wrap: wrap;
+    }
+    .cluster-bar label { color: var(--muted); font-size: 13px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+    .card h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); }
+    input, textarea, button {
+      font: inherit; border-radius: 8px; border: 1px solid var(--line);
+      padding: 9px 11px; width: 100%; background: #fff; color: var(--ink);
+    }
+    textarea { resize: vertical; min-height: 68px; }
+    .row { margin-bottom: 10px; }
+    button {
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      font-weight: 600; width: auto; padding: 9px 16px; transition: opacity .15s;
+    }
+    button:hover { opacity: .9; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .answer {
+      background: var(--accent-soft); border: 1px solid #ddd0f4; border-radius: 10px;
+      padding: 14px; margin-top: 12px; white-space: pre-wrap;
+    }
+    .badge {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: 20px; margin-left: 8px; vertical-align: middle;
+    }
+    .badge.ai { background: #e5f3ec; color: var(--ok); }
+    .badge.kw { background: #efeae0; color: var(--muted); }
+    .memories { margin-top: 26px; }
+    .mem {
+      background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+      border-radius: 8px; padding: 11px 14px; margin-bottom: 10px;
+    }
+    .mem .who { font-weight: 700; }
+    .mem .meta { color: var(--muted); font-size: 12px; }
+    .tags { margin-top: 5px; }
+    .tag { display: inline-block; background: var(--accent-soft); color: var(--accent);
+      font-size: 11px; border-radius: 6px; padding: 1px 7px; margin-right: 5px; }
+    .err { color: #b23b3b; font-size: 13px; margin-top: 8px; min-height: 18px; }
+    .empty { color: var(--muted); font-style: italic; }
+    .count { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useCallback } = React;
+
+    // Same-origin API — served by the FastAPI app.
+    async function api(path, options) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+      const body = res.status === 204 ? null : await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = body && body.error ? body.error.message : `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+      return body;
+    }
+
+    const DEMO = {
+      Alice: [
+        "I watched Sam and Priya exchange vows at the garden wedding in June.",
+        "Grandpa told his fishing story again at the wedding reception.",
+        "Priya wore our grandmother's necklace at the wedding.",
+        "The wedding cake was lemon and Bob had three slices.",
+        "It rained briefly before the wedding ceremony started.",
+      ],
+      Bob: [
+        "The whole family attended Priya's wedding; even cousin Nina flew in.",
+        "I gave the toast at the wedding and forgot half my notes.",
+        "We danced until midnight at the wedding.",
+        "Uncle Ravi caught the biggest fish on the summer trip.",
+        "The wedding was at the Rosewood garden venue.",
+      ],
+      Nina: [
+        "I flew in from Berlin for Priya and Sam's wedding.",
+        "At the wedding I finally met Alice's new puppy.",
+        "The garden wedding had fairy lights everywhere.",
+        "I photographed the whole wedding party by the fountain.",
+        "After the wedding we all had brunch on Sunday.",
+      ],
+    };
+
+    function App() {
+      const [cluster, setCluster] = useState("family-1");
+      const [memories, setMemories] = useState([]);
+      const [member, setMember] = useState("");
+      const [text, setText] = useState("");
+      const [tags, setTags] = useState("");
+      const [question, setQuestion] = useState("Who was at the wedding?");
+      const [answer, setAnswer] = useState(null);
+      const [error, setError] = useState("");
+      const [busy, setBusy] = useState(false);
+
+      const loadMemories = useCallback(async (id) => {
+        try {
+          setMemories(await api(`/v1/cluster/${encodeURIComponent(id)}/memories`));
+        } catch (e) { setError(e.message); }
+      }, []);
+
+      useEffect(() => { loadMemories(cluster); }, [cluster, loadMemories]);
+
+      async function addMemory(e) {
+        e.preventDefault();
+        setError("");
+        try {
+          await api(`/v1/cluster/${encodeURIComponent(cluster)}/store`, {
+            method: "POST",
+            body: JSON.stringify({
+              member, text,
+              tags: tags.split(",").map(t => t.trim()).filter(Boolean),
+            }),
+          });
+          setText(""); setTags("");
+          await loadMemories(cluster);
+        } catch (e) { setError(e.message); }
+      }
+
+      async function ask(e) {
+        e.preventDefault();
+        setError(""); setAnswer(null);
+        try {
+          setAnswer(await api(`/v1/cluster/${encodeURIComponent(cluster)}/run`, {
+            method: "POST",
+            body: JSON.stringify({ question }),
+          }));
+        } catch (e) { setError(e.message); }
+      }
+
+      async function seedDemo() {
+        setError(""); setBusy(true);
+        try {
+          for (const [who, texts] of Object.entries(DEMO)) {
+            for (const t of texts) {
+              await api(`/v1/cluster/${encodeURIComponent(cluster)}/store`, {
+                method: "POST",
+                body: JSON.stringify({ member: who, text: t, tags: t.toLowerCase().includes("wedding") ? ["wedding"] : [] }),
+              });
+            }
+          }
+          await loadMemories(cluster);
+        } catch (e) { setError(e.message); } finally { setBusy(false); }
+      }
+
+      return (
+        <div className="wrap">
+          <div className="cluster-bar">
+            <label htmlFor="cluster">Family cluster</label>
+            <input id="cluster" style={{ width: 160 }} value={cluster}
+              onChange={e => setCluster(e.target.value.trim() || "family-1")} />
+            <button className="ghost" onClick={seedDemo} disabled={busy}>
+              {busy ? "Seeding…" : "Seed demo (3×5)"}
+            </button>
+          </div>
+
+          <div className="grid">
+            <form className="card" onSubmit={addMemory}>
+              <h2>Add a memory</h2>
+              <div className="row">
+                <input placeholder="Your name (e.g. Alice)" value={member}
+                  onChange={e => setMember(e.target.value)} required />
+              </div>
+              <div className="row">
+                <textarea placeholder="What do you remember?" value={text}
+                  onChange={e => setText(e.target.value)} required />
+              </div>
+              <div className="row">
+                <input placeholder="Tags (comma separated, optional)" value={tags}
+                  onChange={e => setTags(e.target.value)} />
+              </div>
+              <button type="submit" disabled={!member || text.trim().length < 3}>Save memory</button>
+            </form>
+
+            <form className="card" onSubmit={ask}>
+              <h2>Ask the chronicle</h2>
+              <div className="row">
+                <input placeholder="Ask a question across everyone's memories" value={question}
+                  onChange={e => setQuestion(e.target.value)} required />
+              </div>
+              <button type="submit" disabled={question.trim().length < 3}>Ask</button>
+              {answer && (
+                <div className="answer">
+                  <strong>Answer</strong>
+                  <span className={"badge " + (answer.used_ai ? "ai" : "kw")}>
+                    {answer.used_ai ? "AI synthesis" : "keyword"}
+                  </span>
+                  <div style={{ marginTop: 8 }}>{answer.answer}</div>
+                  {answer.memories.length > 0 && (
+                    <div className="meta" style={{ marginTop: 10, color: "var(--muted)", fontSize: 12 }}>
+                      Drawn from {answer.memories.length} memories ·
+                      {" " + [...new Set(answer.memories.map(m => m.member))].join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
+            </form>
+          </div>
+
+          <div className="err">{error}</div>
+
+          <div className="memories">
+            <h2 style={{ color: "var(--muted)", fontSize: 15, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              Shared memories <span className="count">({memories.length})</span>
+            </h2>
+            {memories.length === 0 && <p className="empty">No memories yet for “{cluster}”. Add one, or seed the demo.</p>}
+            {memories.map(m => (
+              <div className="mem" key={m.id}>
+                <div><span className="who">{m.member}</span>
+                  <span className="meta"> · {m.date || new Date(m.created_at).toLocaleDateString()}</span>
+                </div>
+                <div>{m.text}</div>
+                {m.tags && m.tags.length > 0 && (
+                  <div className="tags">{m.tags.map(t => <span className="tag" key={t}>{t}</span>)}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(
+      <React.Fragment>
+        <header>
+          <h1>The Family Chronicle</h1>
+          <p>Every family member feeds in memories; a shared Cortex weaves the story.</p>
+        </header>
+        <App />
+      </React.Fragment>
+    );
+  </script>
+</body>
+</html>

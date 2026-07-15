@@ -1,0 +1,10 @@
+.env*
+memory_store.json
+*.tmp
+__pycache__/
+.pytest_cache/
+
+.devcontainer/
+.github/dependabot.yml
+.kilo/
+.vscode/

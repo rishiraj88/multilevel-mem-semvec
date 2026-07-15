@@ -1,0 +1,30 @@
+[project]
+name = "family-chronicle"
+version = "0.1.0"
+description = "A shared family memory agent built with FastAPI"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+    "uvicorn[standard]>=0.30",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.27", "pytest>=8.0"]
+
+# Headless test configuration. Run with: uv run pytest
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q -ra"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Put the project root on sys.path so `app` and `main` import under both
+# `uv run pytest` and `uv run python -m pytest`.
+pythonpath = ["."]
+# Determinism (offline, no API key) is enforced in tests/conftest.py, which
+# clears OPENAI_API_KEY so the LLM path never runs. Individual tests may override.
+
+[tool.uv]
+# uv manages the .venv and the dev dependency group. Provision with: uv sync
+package = false
